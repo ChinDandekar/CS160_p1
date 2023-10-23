@@ -3,7 +3,9 @@
 #include <assert.h>
 #include <string.h>
 #include <ctype.h>
+#include <vector>
 #include <stack>
+#include <iostream>
 
 using namespace std;
 
@@ -80,6 +82,7 @@ char* nonterm_to_string(nonterm_type nt)
 class scanner_t {
   public:
 
+
 	//eats the next token and prints an error if it is not of type c
 	void eat_token(token_type c);
 
@@ -88,9 +91,16 @@ class scanner_t {
 
 	//return line number for errors
 	int get_line();
+	
+	//updates the current line that we are on
+	void next_line();
+
+	//creates all the token
+	void create_tokens();
 
 	//constructor - inits g_next_token
 	scanner_t();
+
 
   private:
 
@@ -104,7 +114,9 @@ class scanner_t {
 
 	//This is a bogus member for implementing a useful stub, it should
 	//be cut out once you get the scanner up and going.
-	token_type bogo_token;
+	int line_number;
+	vector<tuple<token_type,int>> tokenList;
+	int currentToken;
 
 	//error message and exit if weird character
 	void scan_error(char x);
@@ -113,14 +125,87 @@ class scanner_t {
 
 };
 
+void scanner_t::next_line()
+{
+	line_number++;
+}
+
+void scanner_t::create_tokens()
+{
+	char curChar = getchar();
+	string number = "";
+	while(curChar)
+	{
+		if(isdigit(curChar))
+		{
+			number += curChar;
+		}
+		else
+		{
+			if(number == "-")
+			{
+				tokenList.push_back({T_minus, 0});
+				number = "";
+			}
+
+			else if(number != "")
+			{
+				tokenList.push_back({T_num, stoi(number)});
+				number = "";
+			}
+
+			
+			if(curChar == '(')
+				tokenList.push_back({T_openparen, 0});
+			else if(curChar == ')')
+				tokenList.push_back({T_closeparen, 0});
+			else if(curChar == '*')
+				tokenList.push_back({T_times, 0});
+			else if(curChar == '.')
+			{
+				tokenList.push_back({T_period, 0});
+				next_line();
+			}
+			else if(curChar == '|')
+				tokenList.push_back({T_bar, 0});
+			else if(curChar == '+')
+				tokenList.push_back({T_plus, 0});
+			else if(curChar == '-')
+			{
+				if (tokenList.size() == 0 || (get<0>(tokenList[tokenList.size() - 1]) != T_num))
+					number += curChar;
+
+				else
+					tokenList.push_back({T_minus, 0});
+			}
+			else if(curChar == EOF)
+			{
+				tokenList.push_back({T_eof, 0});
+				break;
+			}
+
+			else if(curChar != ' ' && curChar != '\n')
+				scan_error(curChar);
+		}
+
+
+
+		curChar = getchar();
+	}
+
+	for(int i = 0; i<tokenList.size(); i++)
+	{
+		cout<<(token_to_string(get<0>(tokenList[i])))<<", "<<(get<1>(tokenList[i]))<<endl;
+	}
+}
+
 token_type scanner_t::next_token()
 {
 	//WRITEME: replace this bogus junk with code that will take a peek
 	//at the next token and return it to the parser.  It should _not_
 	//actually consume a token - you should be able to call next_token()
 	//multiple times without actually reading any more tokens in 
-	if ( bogo_token!=T_plus && bogo_token!=T_eof ) return T_plus;
-	else return bogo_token;
+	return get<0>(tokenList[currentToken]);
 }
 
 void scanner_t::eat_token(token_type c)
@@ -129,20 +214,27 @@ void scanner_t::eat_token(token_type c)
 	//what we are supposed to be reading from file, then it is a 
 	//mismatch error ( call - mismatch_error(c) )
 
-	//WRITEME: cut this bogus stuff out and implement eat_token
-	if ( rand()%10 < 8 ) bogo_token = T_plus;
-	else bogo_token = T_eof;
+	if(c == get<0>(tokenList[currentToken]))
+	{
+		currentToken++;
+	}
+	else
+		mismatch_error(c);
+	
 
 }
 
 scanner_t::scanner_t()
 {
-	//WRITEME
+	vector<tuple<token_type,int>> tokenList;
+	int line_number = 1;
+	int currentToken = 0;
+	create_tokens();
 }
 
 int scanner_t::get_line()
 {
-	//WRITEME
+	return line_number;
 }
 
 void scanner_t::scan_error (char x)
@@ -337,7 +429,7 @@ void parser_t::syntax_error(nonterm_type nt)
 		token_to_string( scanner.next_token()),
 		nonterm_to_string(nt),
 		scanner.get_line() ); 
-	exit(1); 
+	exit(2); 
 }
 
 
@@ -391,6 +483,9 @@ void parser_t::List()
 
 int main()
 {
+	scanner_t scanner;
+	scanner.next_line();
+
 	parser_t parser;
 	parser.parse();
 	return 0;

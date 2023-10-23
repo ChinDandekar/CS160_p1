@@ -4,7 +4,7 @@ CC	= gcc
 CPP	= g++
 DEFTARGET = calc_def
 
-all: calc_def calc 
+all: clean calc_def calc 
 test_def: calc_def
 	./calc_def < test.good.calc > test.good.defoutput
 	./calc_def < test.bad.calc > test.bad.defoutput

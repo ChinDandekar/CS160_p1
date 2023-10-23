@@ -6,17 +6,30 @@
 %}
 
 
+%left '+' '-'
+%left '*'
 %%
 
-List    : List Expr '.' {printf("parsed expresion\n");}
-	| Expr '.' {printf("parsed expresion\n");}
+List    : Expr '.' List {printf("parsed expression \n");}
+        | Expr '.' {printf("parsed expression \n");}
+
+Expr    : Term Exprs
         ;
 
-Expr    : Expr '+' Expr 
-        | Expr '-' Expr 
-        | Expr '*' Expr
-        | 'n'
-        | '-' Expr  
+Exprs   : '+' Term Exprs
+        | '-' Term Exprs
+        | //empty
+        ;
+
+Term    : Factor Terms
+        ;
+
+Terms   : '*' Factor Terms
+        | //empty
+        ;
+
+Factor  : 'n'
+        | '-' Expr
         | '(' Expr ')'
         | '|' Expr '|'
         ;
