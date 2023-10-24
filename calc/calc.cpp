@@ -56,7 +56,11 @@ char* token_to_string(token_type c) {
 typedef enum {
 	epsilon = 100,
 	NT_List,
-	NT_Expr
+	NT_Expr,
+	NT_Exprs,
+	NT_Term,
+	NT_Terms,
+	NT_Factor
 	//WRITEME: add symbolic names for you non-terminals here
 } nonterm_type;
 
@@ -71,6 +75,11 @@ char* nonterm_to_string(nonterm_type nt)
 	switch( nt ) {
 		  case epsilon: strncpy(buffer,"e",MAX_SYMBOL_NAME_SIZE); break;
 		  case NT_List: strncpy(buffer,"List",MAX_SYMBOL_NAME_SIZE); break;
+		  case NT_Expr: strncpy(buffer,"Expr", MAX_SYMBOL_NAME_SIZE); break;
+		  case NT_Exprs: strncpy(buffer,"Exprs", MAX_SYMBOL_NAME_SIZE); break;
+		  case NT_Term: strncpy(buffer,"Term", MAX_SYMBOL_NAME_SIZE); break;
+		  case NT_Terms: strncpy(buffer,"Terms", MAX_SYMBOL_NAME_SIZE); break;
+		  case NT_Factor: strncpy(buffer,"Factor", MAX_SYMBOL_NAME_SIZE); break;
 		  //WRITEME: add the other nonterminals you need here		
 		  default: strncpy(buffer,"unknown_nonterm",MAX_SYMBOL_NAME_SIZE); break;
 		}
@@ -82,6 +91,8 @@ char* nonterm_to_string(nonterm_type nt)
 class scanner_t {
   public:
 
+	//constructor - inits g_next_token
+	scanner_t();
 
 	//eats the next token and prints an error if it is not of type c
 	void eat_token(token_type c);
@@ -98,8 +109,6 @@ class scanner_t {
 	//creates all the token
 	void create_tokens();
 
-	//constructor - inits g_next_token
-	scanner_t();
 
 
   private:
@@ -114,9 +123,10 @@ class scanner_t {
 
 	//This is a bogus member for implementing a useful stub, it should
 	//be cut out once you get the scanner up and going.
-	int line_number;
+	int line_number = 1;
 	vector<tuple<token_type,int>> tokenList;
-	int currentToken;
+	int currentToken = 0;
+	int debugger = 0;
 
 	//error message and exit if weird character
 	void scan_error(char x);
@@ -124,6 +134,15 @@ class scanner_t {
 	void mismatch_error(token_type c);
 
 };
+
+
+scanner_t::scanner_t()
+{
+	vector<tuple<token_type,int>> tokenList;
+	int line_number = 1;
+	int currentToken = 0;
+	create_tokens();
+}
 
 void scanner_t::next_line()
 {
@@ -193,10 +212,11 @@ void scanner_t::create_tokens()
 		curChar = getchar();
 	}
 
-	for(int i = 0; i<tokenList.size(); i++)
-	{
-		cout<<(token_to_string(get<0>(tokenList[i])))<<", "<<(get<1>(tokenList[i]))<<endl;
-	}
+	// for(int i = 0; i<tokenList.size(); i++)
+	// {
+	// 	cout<<(token_to_string(get<0>(tokenList[i])))<<", "<<(get<1>(tokenList[i]))<<endl;
+	// }
+	// cout<<"TokenList size: "<<tokenList.size()<<endl;
 }
 
 token_type scanner_t::next_token()
@@ -204,7 +224,7 @@ token_type scanner_t::next_token()
 	//WRITEME: replace this bogus junk with code that will take a peek
 	//at the next token and return it to the parser.  It should _not_
 	//actually consume a token - you should be able to call next_token()
-	//multiple times without actually reading any more tokens in 
+	//multiple times without actually reading any more tokens in
 	return get<0>(tokenList[currentToken]);
 }
 
@@ -216,7 +236,7 @@ void scanner_t::eat_token(token_type c)
 
 	if(c == get<0>(tokenList[currentToken]))
 	{
-		currentToken++;
+		currentToken = currentToken + 1;
 	}
 	else
 		mismatch_error(c);
@@ -224,13 +244,6 @@ void scanner_t::eat_token(token_type c)
 
 }
 
-scanner_t::scanner_t()
-{
-	vector<tuple<token_type,int>> tokenList;
-	int line_number = 1;
-	int currentToken = 0;
-	create_tokens();
-}
 
 int scanner_t::get_line()
 {
@@ -302,7 +315,7 @@ parsetree_t::parsetree_t()
 //This particular function should be called if you are pushing a non-terminal
 void parsetree_t::push(nonterm_type nt)
 {
-	counter ++;
+	counter++;
 	stuple temp;
 	temp.nt = nt;
 	temp.stype = NONTERMINAL;
@@ -314,7 +327,7 @@ void parsetree_t::push(nonterm_type nt)
 //same as above, but for terminals
 void parsetree_t::push(token_type t)
 {
-	counter ++;
+	counter++;
 	stuple temp;
 	temp.t = t;
 	temp.stype = TERMINAL;
@@ -403,11 +416,15 @@ class parser_t {
 	void List();
 	//WRITEME: fill this out with the rest of the 
 	//recursive decent stuff (more methods)
+	void Expr();
+	void Exprs();
+	void Term();
+	void Terms();
+	void Factor();
 
   public:	
 	void parse();
 };
-
 
 //this function not only eats the token (moving the scanner forward one
 //token), it also makes sure that token is drawn in the parse tree 
@@ -457,19 +474,17 @@ void parser_t::List()
 	//parsing of the data
 	parsetree.push(NT_List);
 
-	switch( scanner.next_token() ) 
+	Expr();
+	if(scanner.next_token() == T_period)
 	{
-		case T_plus:
-			eat_token(T_plus);
+		scanner.eat_token(T_period);
+		if(scanner.next_token() != T_eof)
 			List();
-			break;
-		case T_eof:
+		else
 			parsetree.drawepsilon();
-			break;
-		default:
-			syntax_error(NT_List);
-			break;
 	}
+	else 
+		syntax_error(NT_List);
 
 	//now that we are done with List, we can pop it from the data
 	//stucture that is tracking it for drawing the parse tree
@@ -478,14 +493,99 @@ void parser_t::List()
 
 //WRITEME: you will need to put the rest of the procedures here
 
+void parser_t::Expr()
+{
+	parsetree.push(NT_Expr);
+	Term();
+	Exprs();
+	parsetree.pop();
+}
+
+void parser_t::Term()
+{
+	parsetree.push(NT_Term);
+	Factor();
+	Terms();
+	parsetree.pop();
+}
+
+void parser_t::Exprs()
+{
+	parsetree.push(NT_Term);
+	switch(scanner.next_token())
+	{
+		case T_plus: 
+			scanner.eat_token(T_plus);
+			Term();
+			Exprs();
+			break;
+		case T_minus:
+			scanner.eat_token(T_minus);
+			Term();
+			Exprs();
+			break;
+	}
+	parsetree.pop();
+}
+
+void parser_t::Terms()
+{
+	parsetree.push(NT_Terms);
+	if(scanner.next_token() == T_times)
+	{
+		scanner.eat_token(T_times);
+		Factor();
+		Terms();
+	}
+	parsetree.pop();
+}
+
+void parser_t::Factor()
+{
+	parsetree.push(NT_Factor);
+	switch(scanner.next_token())
+	{
+		case T_num:
+			//cout << "Read a number" << endl;
+			scanner.eat_token(T_num);
+			break;
+		case T_minus:
+			//cout << "Read a minus operator" << endl;
+			scanner.eat_token(T_minus);
+			Expr();
+			break;
+		case T_openparen:
+			//cout << "Read an open parenthesis" << endl;
+			scanner.eat_token(T_openparen);
+			Expr();
+			if(scanner.next_token() == T_closeparen)
+			{
+				//cout << "Read an closed parenthesis" << endl;
+				scanner.eat_token(T_closeparen);
+			}
+			else
+				syntax_error(NT_Factor);
+			break;
+		case T_bar:
+			//cout << "Read an open |" << endl;
+			scanner.eat_token(T_bar);
+			Expr();
+			if(scanner.next_token() == T_bar)
+			{
+				//cout << "Read an closed |" << endl;
+				scanner.eat_token(T_bar);
+			}
+			else
+				syntax_error(NT_Factor);
+			break;
+		default: syntax_error(NT_Factor);
+	}
+}
 
 /*** Main ***********************************************/
 
 int main()
 {
-	scanner_t scanner;
-	scanner.next_line();
-
 	parser_t parser;
 	parser.parse();
 	return 0;
